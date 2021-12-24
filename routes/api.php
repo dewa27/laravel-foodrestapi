@@ -5,6 +5,12 @@ use App\Models\Food;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\Cart;
+use App\Models\Payment;
+// use GuzzleHttp\Psr7\Response;
+use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Str;
+use Mockery\Generator\StringManipulation\Pass\Pass;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -51,6 +57,7 @@ Route::get('/foods/category/{arr_id_category}/{food_name}',function($arr_id_cate
 })->where('arr_id_category','[0-9]+(,[0-9]+)*')->where('food_name', '^[a-zA-Z ]*$');
 
 
+
 Route::get('/carts/{id}',function($id){
     return Cart::where('id_customer',$id)->with('food');
 });
@@ -60,4 +67,65 @@ Route::get('/customers',function(){
 });
 Route::get('/customers/{id}',function($id){
     return Customer::find($id);
+});
+
+Route::post('/carts/create',function(Request $request){
+    $cart = new Cart();
+    $cart->id_food = $request->id_food;
+    $cart->cart_qty = $request->cart_qty;
+    $cart->id_customer = $request->id_customer;
+    $cart->notes = $request->notes;
+    if($cart->save()){
+        return response()->json(['id_cart'=>$cart->id_cart,'code'=>200]);
+    }
+});
+
+Route::post('/customers/create',function(Request $request){
+    $customer=new Customer();
+    $customer->customer_name=$request->customer_name;
+    $customer->customer_qty=$request->customer_qty;
+    $customer->status_makan=$request->status_makan;
+    $customer->rekomendasi=$request->rekomendasi;
+    $customer->uuid=Str::orderedUuid()->getHex();
+    if($customer->save()){
+        return $customer;
+    }else{
+        return 0;
+    }
+});
+
+Route::post('/payment/create',function(Request $request){
+    $payment=new Payment();
+    $payment->code=$request->code;
+    $payment->total=$request->total;
+    $customer=Customer::where('uuid',$request->uuid)->get();
+    $payment->id_customer=$customer[0]->id_customer;
+    $payment->payment_status="waiting";
+    $cartData=json_decode($request->cartData);
+    // return $cartData;
+    foreach($cartData as $cartItem){
+        $cart=new Cart();
+        $cart->id_food=$cartItem->food->id_food; 
+        $cart->cart_qty=$cartItem->cart_qty;
+        $cart->id_customer=$payment->id_customer;
+        $cart->notes=$cartItem->notes;
+        $cart->save();
+    }
+    if($payment->save()){
+        return $payment;
+    }else{
+        return 0;
+    }
+    // return $request->cartData;
+});
+
+Route::post('/payment/check',function(Request $request){
+    $payment=Payment::where('code',$request->code)->get();
+    if($payment[0]->payment_status=="scanned"){
+        $payment[0]->payment_status="paid";
+        $payment[0]->save();
+        return array('status'=>"success",'id_payment'=>$payment[0]->id_payment,'notes'=>"Berhasil discan");
+    }else{
+        return array('status'=>"error",'id_payment'=>$payment[0]->id_payment,'notes'=>"Gagal discan");
+    }
 });

@@ -15,4 +15,7 @@ class Customer extends Model
     {
         return $this->hasMany(Cart::class,"id_cart");
     }
+    public function payment(){
+        return $this->hasMany(Payment::class,"id_payment");
+    }
 }
